@@ -30,16 +30,172 @@ class GeneSequencing:
 # how many base pairs to use in computing the alignment
 
 	def align( self, seq1, seq2, banded, align_length):
+		# map (i, j) to prev (i, j) along the optimal path
+		prev = {}
+		# n is the length of the shorter sequence
+		smaller = seq2 if len(seq2) < len(seq1) else seq1
+		larger = seq1 if len(seq1) > len(seq2) else seq2
+
+		n = len(smaller)
+		m = len(larger)
+
+		if m > align_length:
+			m = align_length
+		
+		if n > align_length:
+			n = align_length
+
+		if not banded:
+			# initialize an m+1 by n+1 matrix
+			dp = [[0 for i in range(n+1)] for j in range(m+1)]
+			
+			# initialize the first row and column
+			for i in range(m+1):
+				dp[i][0] = INDEL * i
+				prev[(i, 0)] = None
+
+			for j in range(n+1):
+				dp[0][j] = INDEL * j
+				prev[(0, j)] = None
+
+			# fill in the rest of the matrix
+			for i in range(1, m + 1):
+				for j in range(1, n + 1):
+					left = dp[i][j-1] + INDEL
+					top = dp[i-1][j] + INDEL
+					diag = dp[i-1][j-1] + (MATCH if larger[i-1] == smaller[j-1] else SUB)
+
+					# break ties in the following order: left, top, diag
+					if left <= top and left <= diag:
+						dp[i][j] = left
+						prev[(i, j)] = (i, j-1)
+					elif top <= left and top <= diag:
+						dp[i][j] = top
+						prev[(i, j)] = (i-1, j)
+					else:
+						dp[i][j] = diag
+						prev[(i, j)] = (i-1, j-1)
+
+		else:
+			# banded algorithm with a band of 7
+			d = 3
+			k = 7
+			dp = {}
+			
+			# initialize the first row and column
+			for i in range(d + 1):
+				dp[(i, 0)] = INDEL * i
+				prev[(i, 0)] = None
+			
+			for j in range(d + 1):
+				dp[(0, j)] = INDEL * j
+				prev[(0, j)] = None
+
+			for i in range(1, n + 1):
+				for j in range(i - d, i + d + 1):
+					if j <= 0:
+						continue
+
+					if j > m:
+						continue
+
+					top = dp[(i-1, j)] + INDEL if (i-1, j) in dp else None
+					left = dp[(i, j-1)] + INDEL if (i, j-1) in dp else None
+					diag = dp[(i-1, j-1)] + (MATCH if larger[j-1] == smaller[i-1] else SUB)
+
+					if j == i - d:
+						if top <= diag:
+							dp[(i, j)] = top
+							prev[(i, j)] = (i-1, j)
+						else:
+							dp[(i, j)] = diag
+							prev[(i, j)] = (i-1, j-1)
+
+					elif j == i + d:
+						if left <= diag:
+							dp[(i, j)] = left
+							prev[(i, j)] = (i, j-1)
+						else:
+							dp[(i, j)] = diag
+							prev[(i, j)] = (i-1, j-1)
+					
+					else:
+						# break ties in the following order: left, top, diag
+						if left <= top and left <= diag:
+							dp[(i, j)] = left
+							prev[(i, j)] = (i, j-1)
+						elif top <= left and top <= diag:
+							dp[(i, j)] = top
+							prev[(i, j)] = (i-1, j)
+						else:
+							dp[(i, j)] = diag
+							prev[(i, j)] = (i-1, j-1)
+
 		self.banded = banded
 		self.MaxCharactersToAlign = align_length
 
 ###################################################################################################
 # your code should replace these three statements and populate the three variables: score, alignment1 and alignment2
-		score = random.random()*100;
-		alignment1 = 'abc-easy  DEBUG:({} chars,align_len={}{})'.format(
-			len(seq1), align_length, ',BANDED' if banded else '')
-		alignment2 = 'as-123--  DEBUG:({} chars,align_len={}{})'.format(
-			len(seq2), align_length, ',BANDED' if banded else '')
+		score = None
+		alignment1 = ''
+		alignment2 = ''
+		if not banded:
+			score = dp[m][n]
+
+			i = m
+			j = n
+
+			while prev[(i, j)] is not None:
+				prev_i, prev_j = prev[(i, j)]
+				if prev_i == i - 1 and prev_j == j - 1:
+					alignment1 += larger[i-1]
+					alignment2 += smaller[j-1]
+				elif prev_i == i - 1:
+					alignment1 += larger[i-1]
+					alignment2 += '-'
+				else:
+					alignment1 += '-'
+					alignment2 = alignment2 + smaller[j-1] 
+
+				i = prev_i
+				j = prev_j
+			
+			alignment1 = alignment1[::-1][:100]
+			alignment2 = alignment2[::-1][:100]
+
+		else:
+			if (n, m) in dp:
+				score = dp[(n, m)]
+
+				i = n
+				j = m
+
+				while prev[(i, j)] is not None:
+					prev_i, prev_j = prev[(i, j)]
+					if prev_i == i - 1 and prev_j == j - 1:
+						alignment1 += larger[j-1]
+						alignment2 += smaller[i-1]
+					elif prev_i == i - 1:
+						alignment1 += '-'
+						alignment2 += smaller[i-1]
+					else:
+						alignment1 += larger[j-1]
+						alignment2 += '-'
+
+					i = prev_i
+					j = prev_j
+			
+				alignment1 = alignment1[::-1][:100]
+				alignment2 = alignment2[::-1][:100]
+
+			else:
+				score = float('inf')
+				alignment1 = 'No Alignment Possible'
+				alignment2 = 'No Alignment Possible'
+		# alignment1 = 'abc-easy  DEBUG:({} chars,align_len={}{})'.format(
+		# 	len(seq1), align_length, ',BANDED' if banded else '')
+		# alignment2 = 'as-123--  DEBUG:({} chars,align_len={}{})'.format(
+		# 	len(seq2), align_length, ',BANDED' if banded else '')
 ###################################################################################################
 
 		return {'align_cost':score, 'seqi_first100':alignment1, 'seqj_first100':alignment2}
