@@ -47,23 +47,26 @@ class GeneSequencing:
 
 		if not banded:
 			# initialize an m+1 by n+1 matrix
-			dp = [[0 for i in range(n+1)] for j in range(m+1)]
+			dp = [[0 for i in range(m+1)] for j in range(n+1)]
 			
 			# initialize the first row and column
-			for i in range(m+1):
-				dp[i][0] = INDEL * i
-				prev[(i, 0)] = None
 
-			for j in range(n+1):
+			prev[(0, 0)] = None
+
+			for i in range(1, n+1):
+				dp[i][0] = INDEL * i
+				prev[(i, 0)] = (i-1, 0)
+
+			for j in range(1, m+1):
 				dp[0][j] = INDEL * j
-				prev[(0, j)] = None
+				prev[(0, j)] = (0, j-1)
 
 			# fill in the rest of the matrix
-			for i in range(1, m + 1):
-				for j in range(1, n + 1):
+			for i in range(1, n + 1):
+				for j in range(1, m + 1):
 					left = dp[i][j-1] + INDEL
 					top = dp[i-1][j] + INDEL
-					diag = dp[i-1][j-1] + (MATCH if larger[i-1] == smaller[j-1] else SUB)
+					diag = dp[i-1][j-1] + (MATCH if larger[j-1] == smaller[i-1] else SUB)
 
 					# break ties in the following order: left, top, diag
 					if left <= top and left <= diag:
@@ -79,17 +82,19 @@ class GeneSequencing:
 		else:
 			# banded algorithm with a band of 7
 			d = 3
-			k = 7
 			dp = {}
+
+			dp[(0,0)] = 0
+			prev[(0, 0)] = None
 			
 			# initialize the first row and column
-			for i in range(d + 1):
+			for i in range(1, d + 1):
 				dp[(i, 0)] = INDEL * i
-				prev[(i, 0)] = None
+				prev[(i, 0)] = (i-1, 0)
 			
-			for j in range(d + 1):
+			for j in range(1, d + 1):
 				dp[(0, j)] = INDEL * j
-				prev[(0, j)] = None
+				prev[(0, j)] = (0, j-1)
 
 			for i in range(1, n + 1):
 				for j in range(i - d, i + d + 1):
@@ -134,28 +139,27 @@ class GeneSequencing:
 		self.banded = banded
 		self.MaxCharactersToAlign = align_length
 
-###################################################################################################
-# your code should replace these three statements and populate the three variables: score, alignment1 and alignment2
+		# your code should replace these three statements and populate the three variables: score, alignment1 and alignment2
 		score = None
 		alignment1 = ''
 		alignment2 = ''
-		if not banded:
-			score = dp[m][n]
+		if not banded or (n, m) in dp:
+			score = dp[n][m] if not banded else dp[(n, m)]
 
-			i = m
-			j = n
+			i = n
+			j = m
 
 			while prev[(i, j)] is not None:
 				prev_i, prev_j = prev[(i, j)]
 				if prev_i == i - 1 and prev_j == j - 1:
-					alignment1 += larger[i-1]
-					alignment2 += smaller[j-1]
+					alignment1 += larger[j-1]
+					alignment2 += smaller[i-1]
 				elif prev_i == i - 1:
-					alignment1 += larger[i-1]
-					alignment2 += '-'
-				else:
 					alignment1 += '-'
-					alignment2 = alignment2 + smaller[j-1] 
+					alignment2 += smaller[i-1]
+				else:
+					alignment1 += larger[j-1]
+					alignment2 += '-'
 
 				i = prev_i
 				j = prev_j
@@ -164,38 +168,8 @@ class GeneSequencing:
 			alignment2 = alignment2[::-1][:100]
 
 		else:
-			if (n, m) in dp:
-				score = dp[(n, m)]
-
-				i = n
-				j = m
-
-				while prev[(i, j)] is not None:
-					prev_i, prev_j = prev[(i, j)]
-					if prev_i == i - 1 and prev_j == j - 1:
-						alignment1 += larger[j-1]
-						alignment2 += smaller[i-1]
-					elif prev_i == i - 1:
-						alignment1 += '-'
-						alignment2 += smaller[i-1]
-					else:
-						alignment1 += larger[j-1]
-						alignment2 += '-'
-
-					i = prev_i
-					j = prev_j
-			
-				alignment1 = alignment1[::-1][:100]
-				alignment2 = alignment2[::-1][:100]
-
-			else:
-				score = float('inf')
-				alignment1 = 'No Alignment Possible'
-				alignment2 = 'No Alignment Possible'
-		# alignment1 = 'abc-easy  DEBUG:({} chars,align_len={}{})'.format(
-		# 	len(seq1), align_length, ',BANDED' if banded else '')
-		# alignment2 = 'as-123--  DEBUG:({} chars,align_len={}{})'.format(
-		# 	len(seq2), align_length, ',BANDED' if banded else '')
-###################################################################################################
+			score = float('inf')
+			alignment1 = 'No Alignment Possible'
+			alignment2 = 'No Alignment Possible'
 
 		return {'align_cost':score, 'seqi_first100':alignment1, 'seqj_first100':alignment2}
